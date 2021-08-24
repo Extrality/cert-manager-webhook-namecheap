@@ -142,7 +142,7 @@ func (c *namecheapDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) erro
 		return err
 	}
 
-	d.addTestRecord(domain, ch.Key)
+	d.addChallengeRecord(domain, ch.Key)
 
 	if err := c.namecheapClient.SetDomain(*d); err != nil {
 		return err
@@ -179,7 +179,7 @@ func (c *namecheapDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) erro
 		return err
 	}
 
-	d.removeTestRecord(domain)
+	d.removeChallengeRecord(domain, ch.Key)
 
 	if err := c.namecheapClient.SetDomain(*d); err != nil {
 		return err
@@ -313,7 +313,7 @@ func (c *namecheapDNSProviderSolver) parseChallenge(ch *v1alpha1.ChallengeReques
 }
 
 // Adds a record to a domain
-func (d *Domain) addTestRecord(domain, key string) {
+func (d *Domain) addChallengeRecord(domain, key string) {
 	*d.Records = append(
 		*d.Records,
 		Record{
@@ -326,11 +326,14 @@ func (d *Domain) addTestRecord(domain, key string) {
 }
 
 // Removes a record from a domain
-func (d *Domain) removeTestRecord(domain string) {
+func (d *Domain) removeChallengeRecord(domain, key string) {
 	for i, record := range *d.Records {
-		if *record.Name == domain && *record.Type == namecheap.RecordTypeTXT {
+		if *record.Name == domain &&
+			*record.Type == namecheap.RecordTypeTXT &&
+			*record.Address == key {
 			records := *d.Records
 			*d.Records = append(records[:i], records[i+1:]...)
+			return
 		}
 	}
 }
