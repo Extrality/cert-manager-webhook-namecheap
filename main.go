@@ -55,8 +55,6 @@ type namecheapDNSProviderSolver struct {
 	namecheapClient *namecheap.Client
 }
 
-type zoneRecords []namecheap.DomainsDNSHostRecord
-
 // namecheapDNSProviderConfig is a structure that is used to decode into when
 // solving a DNS01 challenge.
 // This information is provided by cert-manager, and may be a reference to
@@ -78,8 +76,8 @@ type namecheapDNSProviderConfig struct {
 	APIKeySecretRef cmmeta.SecretKeySelector `json:"apiKeySecretRef"`
 	APIUser         string                   `json:"apiUser"`
 	ClientIP        string                   `json:"clientIP"`
-	Username        string                   `json:"username"`
 	UseSandbox      bool                     `json:"useSandbox"`
+	Username        string                   `json:"username"`
 }
 
 // Name is used as the name for this DNS solver when referencing it on the ACME
@@ -114,18 +112,22 @@ func (c *namecheapDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) erro
 		}
 	}
 
-	currentRecords, err := c.getZoneRecords(zone)
+	z, err := c.getZone(zone)
 	if err != nil {
 		return err
 	}
-	log.Printf("%+v", currentRecords)
-	currentRecords.addRecord(domain, ch.Key)
-	log.Printf("%+v", currentRecords)
-	records := []namecheap.DomainsDNSHostRecord(*currentRecords)
+
+	records, err := getRecords(z.Hosts)
+	if err != nil {
+		return err
+	}
+
+	records = addTestRecord(records, domain, ch.Key)
 
 	args := &namecheap.DomainsDNSSetHostsArgs{
-		Domain:  &zone,
-		Records: &records,
+		Domain:    z.Domain,
+		EmailType: z.EmailType,
+		Records:   &records,
 	}
 
 	if _, err := c.namecheapClient.DomainsDNS.SetHosts(args); err != nil {
@@ -158,16 +160,22 @@ func (c *namecheapDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) erro
 		}
 	}
 
-	currentRecords, err := c.getZoneRecords(zone)
+	z, err := c.getZone(zone)
 	if err != nil {
 		return err
 	}
-	currentRecords.removeRecord(domain)
-	records := []namecheap.DomainsDNSHostRecord(*currentRecords)
+
+	records, err := getRecords(z.Hosts)
+	if err != nil {
+		return err
+	}
+
+	records = removeTestRecord(records, domain)
 
 	args := &namecheap.DomainsDNSSetHostsArgs{
-		Domain:  &zone,
-		Records: &records,
+		Domain:    z.Domain,
+		EmailType: z.EmailType,
+		Records:   &records,
 	}
 
 	if _, err := c.namecheapClient.DomainsDNS.SetHosts(args); err != nil {
@@ -260,50 +268,13 @@ func (c *namecheapDNSProviderSolver) setNamecheapClient(ch *v1alpha1.ChallengeRe
 	return nil
 }
 
-func (c *namecheapDNSProviderSolver) getZoneRecords(zone string) (*zoneRecords, error) {
+func (c *namecheapDNSProviderSolver) getZone(zone string) (*namecheap.DomainDNSGetHostsResult, error) {
 	resp, err := c.namecheapClient.DomainsDNS.GetHosts(zone)
 	if err != nil {
 		return nil, err
 	}
 
-	if resp.DomainDNSGetHostsResult == nil || resp.DomainDNSGetHostsResult.Hosts == nil {
-		return nil, fmt.Errorf(
-			"no records found for zone '%s", zone,
-		)
-	}
-
-	records := make(zoneRecords, len(*resp.DomainDNSGetHostsResult.Hosts))
-
-	for i, host := range *resp.DomainDNSGetHostsResult.Hosts {
-		if host.Name == nil {
-			return nil, fmt.Errorf(
-				"hostname missing for record",
-			)
-		}
-		if host.Type == nil {
-			return nil, fmt.Errorf(
-				"type missing for record",
-			)
-		}
-
-		record := namecheap.DomainsDNSHostRecord{
-			HostName:   host.Name,
-			RecordType: host.Type,
-		}
-		if host.Address != nil {
-			record.Address = host.Address
-		}
-		if host.MXPref != nil {
-			record.MXPref = namecheap.UInt8(uint8(*host.MXPref))
-		}
-		if host.TTL != nil {
-			record.TTL = host.TTL
-		}
-
-		records[i] = record
-	}
-
-	return &records, nil
+	return resp.DomainDNSGetHostsResult, nil
 }
 
 // Get the zone and domain we are setting from the challenge request
@@ -328,10 +299,45 @@ func (c *namecheapDNSProviderSolver) parseChallenge(ch *v1alpha1.ChallengeReques
 	return zone, domain, nil
 }
 
+func getRecords(recordsIn *[]namecheap.DomainsDNSHostRecordDetailed) ([]namecheap.DomainsDNSHostRecord, error) {
+	records := make([]namecheap.DomainsDNSHostRecord, len(*recordsIn))
+
+	for i, rIn := range *recordsIn {
+		if rIn.Name == nil {
+			return nil, fmt.Errorf(
+				"hostname missing for record",
+			)
+		}
+		if rIn.Type == nil {
+			return nil, fmt.Errorf(
+				"type missing for record",
+			)
+		}
+
+		record := namecheap.DomainsDNSHostRecord{
+			HostName:   rIn.Name,
+			RecordType: rIn.Type,
+		}
+		if rIn.Address != nil {
+			record.Address = rIn.Address
+		}
+		if rIn.MXPref != nil {
+			record.MXPref = namecheap.UInt8(uint8(*rIn.MXPref))
+		}
+		if rIn.TTL != nil {
+			record.TTL = rIn.TTL
+		}
+
+		records[i] = record
+	}
+
+	return records, nil
+}
+
 // Adds a record to a domain
-func (zr *zoneRecords) addRecord(domain, key string) {
-	records := append(
-		*zr,
+func addTestRecord(records []namecheap.DomainsDNSHostRecord, domain, key string) []namecheap.DomainsDNSHostRecord {
+	return append(
+		records,
 		namecheap.DomainsDNSHostRecord{
 			HostName:   &domain,
 			RecordType: namecheap.String(namecheap.RecordTypeTXT),
@@ -339,19 +345,15 @@ func (zr *zoneRecords) addRecord(domain, key string) {
 			TTL:        namecheap.Int(60),
 		},
 	)
-
-	*zr = records
 }
 
-// Removes a record to a domain
-func (zr *zoneRecords) removeRecord(domain string) {
-	records := []namecheap.DomainsDNSHostRecord(*zr)
-
-	for i, record := range *zr {
-		if *record.HostName == domain {
-			records = append(records[:i], records[i+i:]...)
+// Removes a record from a domain
+func removeTestRecord(recordsIn []namecheap.DomainsDNSHostRecord, domain string) []namecheap.DomainsDNSHostRecord {
+	for i, rIn := range recordsIn {
+		if *rIn.HostName == domain && *rIn.RecordType == namecheap.RecordTypeTXT {
+			return append(recordsIn[:i], recordsIn[i+1:]...)
 		}
 	}
 
-	*zr = zoneRecords(records)
+	return recordsIn
 }
