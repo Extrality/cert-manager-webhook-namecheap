@@ -261,6 +261,7 @@ func (c *namecheapDNSProviderSolver) setNamecheapClient(ch *v1alpha1.ChallengeRe
 	}
 
 	// attempt to set the ClientIp dynamically if not set
+	// source: https://stackoverflow.com/a/37382208
 	if cfg.ClientIP == nil {
 		ip, err := getOutboundIP()
 		if err != nil {
