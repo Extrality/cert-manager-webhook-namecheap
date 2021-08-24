@@ -70,6 +70,36 @@ rules:
     verbs:
       - 'create'
 ---
+# Grant Namecheap webhook permission to read the cert secret
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "cert-manager-webhook-namecheap.fullname" . }}
+  labels:
+    app: {{ include "cert-manager-webhook-namecheap.name" . }}
+    chart: {{ include "cert-manager-webhook-namecheap.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+  # K8s 1.15.8 and below has a bug noted here: https://github.com/kubernetes/kubernetes/issues/86359
+  # A fix was merged in this PR: https://github.com/kubernetes/kubernetes/pull/86363/files,
+  # and k8s version 1.15.9+ has the fix. For backwards compatability, the
+  # ClusterRole is modified to allow for configmap access.
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -88,3 +118,21 @@ subjects:
     kind: ServiceAccount
     name: {{ .Values.certManager.serviceAccountName }}
     namespace: {{ .Values.certManager.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "cert-manager-webhook-namecheap.fullname" . }}
+  labels:
+    app: {{ include "cert-manager-webhook-namecheap.name" . }}
+    chart: {{ include "cert-manager-webhook-namecheap.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "cert-manager-webhook-namecheap.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "cert-manager-webhook-namecheap.fullname" . }}
+    namespace: {{ .Release.Namespace }}
