@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 
@@ -256,10 +257,27 @@ func (c *namecheapDNSProviderSolver) setNamecheapClient(ch *v1alpha1.ChallengeRe
 	opts := &namecheap.ClientOptions{
 		ApiKey:     apiKey,
 		ApiUser:    cfg.APIUser,
-		ClientIp:   cfg.ClientIP,
 		UseSandbox: cfg.UseSandbox,
-		UserName:   cfg.Username,
 	}
+
+	// attempt to set the ClientIp dynamically if not set
+	if cfg.ClientIP == "" {
+		ip, err := getOutboundIP()
+		if err != nil {
+			return err
+		}
+		opts.ClientIp = ip.String()
+	} else {
+		opts.ClientIp = cfg.ClientIP
+	}
+
+	// default UserName to APIUser if not set
+	if cfg.Username == "" {
+		opts.UserName = cfg.APIUser
+	} else {
+		opts.UserName = cfg.Username
+	}
+
 	c.namecheapClient = namecheap.NewClient(
 		opts,
 	)
@@ -355,4 +373,17 @@ func removeTestRecord(recordsIn []namecheap.DomainsDNSHostRecord, domain string)
 	}
 
 	return recordsIn
+}
+
+// Get preferred outbound ip of this machine
+func getOutboundIP() (*net.IP, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return &localAddr.IP, nil
 }
