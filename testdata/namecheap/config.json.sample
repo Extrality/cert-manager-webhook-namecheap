@@ -3,6 +3,9 @@
     "name": "namecheap-credentials",
     "key": "apiKey"
   },
-  "apiUser": "<<API USER>>",
+  "apiUserSecretRef": {
+    "name": "namecheap-credentials",
+    "key": "apiUser"
+  },
   "useSandbox": true
 }
