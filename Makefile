@@ -1,8 +1,9 @@
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 
-IMAGE_NAME := "webhook"
+IMAGE_NAME := cert-manager-webhook-namecheap
 IMAGE_TAG := "latest"
+REPO_NAME := jgoodhouse
 
 OUT := $(shell pwd)/_out
 
@@ -29,10 +30,16 @@ clean-kubebuilder:
 build:
 	docker build -t "$(IMAGE_NAME):$(IMAGE_TAG)" .
 
+tag:
+	docker tag "$(IMAGE_NAME):$(IMAGE_TAG)" "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)"
+
+push:
+	docker push "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)"
+
 .PHONY: rendered-manifest.yaml
 rendered-manifest.yaml:
 	helm template \
-	    --name example-webhook \
+	    --name ${IMAGE_NAME} \
         --set image.repository=$(IMAGE_NAME) \
         --set image.tag=$(IMAGE_TAG) \
-        deploy/example-webhook > "$(OUT)/rendered-manifest.yaml"
+        deploy/${IMAGE_NAME} > "$(OUT)/rendered-manifest.yaml"

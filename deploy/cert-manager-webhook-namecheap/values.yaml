@@ -6,19 +6,22 @@
 # solve the DNS01 challenge.
 # This group name should be **unique**, hence using your own company's domain
 # here is recommended.
-groupName: acme.mycompany.com
+groupName: acme.namecheap.com
 
 certManager:
   namespace: cert-manager
   serviceAccountName: cert-manager
 
 image:
-  repository: mycompany/webhook-image
+  repository: jgoodhouse/cert-manager-webhook-namecheap
   tag: latest
   pullPolicy: IfNotPresent
 
 nameOverride: ""
 fullnameOverride: ""
+
+# The (secure) port our app binds to
+containerPort: 8443
 
 service:
   type: ClusterIP
@@ -36,8 +39,12 @@ resources: {}
   #  cpu: 100m
   #  memory: 128Mi
 
+securityContext: {}
+
 nodeSelector: {}
 
 tolerations: []
 
 affinity: {}
+
+priorityClassName: ""

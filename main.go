@@ -1,16 +1,25 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"strings"
 
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	//"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/jetstack/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
 	"github.com/jetstack/cert-manager/pkg/acme/webhook/cmd"
+	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
+	"github.com/jetstack/cert-manager/pkg/issuer/acme/dns/util"
+
+	namecheap "github.com/namecheap/go-namecheap-sdk/v2/namecheap"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var GroupName = os.Getenv("GROUP_NAME")
@@ -20,31 +29,35 @@ func main() {
 		panic("GROUP_NAME must be specified")
 	}
 
-	// This will register our custom DNS provider with the webhook serving
+	// This will register our namecheap DNS provider with the webhook serving
 	// library, making it available as an API under the provided GroupName.
 	// You can register multiple DNS provider implementations with a single
 	// webhook, where the Name() method will be used to disambiguate between
 	// the different implementations.
 	cmd.RunWebhookServer(GroupName,
-		&customDNSProviderSolver{},
+		&namecheapDNSProviderSolver{},
 	)
 }
 
-// customDNSProviderSolver implements the provider-specific logic needed to
+// namecheapDNSProviderSolver implements the provider-specific logic needed to
 // 'present' an ACME challenge TXT record for your own DNS provider.
 // To do so, it must implement the `github.com/jetstack/cert-manager/pkg/acme/webhook.Solver`
 // interface.
-type customDNSProviderSolver struct {
+type namecheapDNSProviderSolver struct {
 	// If a Kubernetes 'clientset' is needed, you must:
 	// 1. uncomment the additional `client` field in this structure below
 	// 2. uncomment the "k8s.io/client-go/kubernetes" import at the top of the file
 	// 3. uncomment the relevant code in the Initialize method below
 	// 4. ensure your webhook's service account has the required RBAC role
 	//    assigned to it for interacting with the Kubernetes APIs you need.
-	//client kubernetes.Clientset
+	ctx             context.Context
+	k8sClient       *kubernetes.Clientset
+	namecheapClient *namecheap.Client
 }
 
-// customDNSProviderConfig is a structure that is used to decode into when
+type zoneRecords []namecheap.DomainsDNSHostRecord
+
+// namecheapDNSProviderConfig is a structure that is used to decode into when
 // solving a DNS01 challenge.
 // This information is provided by cert-manager, and may be a reference to
 // additional configuration that's needed to solve the challenge for this
@@ -58,14 +71,15 @@ type customDNSProviderSolver struct {
 // You should not include sensitive information here. If credentials need to
 // be used by your provider here, you should reference a Kubernetes Secret
 // resource and fetch these credentials using a Kubernetes clientset.
-type customDNSProviderConfig struct {
-	// Change the two fields below according to the format of the configuration
-	// to be decoded.
+type namecheapDNSProviderConfig struct {
 	// These fields will be set by users in the
 	// `issuer.spec.acme.dns01.providers.webhook.config` field.
 
-	//Email           string `json:"email"`
-	//APIKeySecretRef v1alpha1.SecretKeySelector `json:"apiKeySecretRef"`
+	APIKeySecretRef cmmeta.SecretKeySelector `json:"apiKeySecretRef"`
+	APIUser         string                   `json:"apiUser"`
+	ClientIP        string                   `json:"clientIP"`
+	Username        string                   `json:"username"`
+	UseSandbox      bool                     `json:"useSandbox"`
 }
 
 // Name is used as the name for this DNS solver when referencing it on the ACME
@@ -74,8 +88,8 @@ type customDNSProviderConfig struct {
 // solvers configured with the same Name() **so long as they do not co-exist
 // within a single webhook deployment**.
 // For example, `cloudflare` may be used as the name of a solver.
-func (c *customDNSProviderSolver) Name() string {
-	return "my-custom-solver"
+func (c *namecheapDNSProviderSolver) Name() string {
+	return "namecheap"
 }
 
 // Present is responsible for actually presenting the DNS record with the
@@ -83,16 +97,41 @@ func (c *customDNSProviderSolver) Name() string {
 // This method should tolerate being called multiple times with the same value.
 // cert-manager itself will later perform a self check to ensure that the
 // solver has correctly configured the DNS provider.
-func (c *customDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
+func (c *namecheapDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 	cfg, err := loadConfig(ch.Config)
 	if err != nil {
 		return err
 	}
 
-	// TODO: do something more useful with the decoded configuration
-	fmt.Printf("Decoded configuration %v", cfg)
+	zone, domain, err := c.parseChallenge(ch)
+	if err != nil {
+		return err
+	}
 
-	// TODO: add code that sets a record in the DNS provider's console
+	if c.namecheapClient == nil {
+		if err := c.setNamecheapClient(ch, cfg); err != nil {
+			return err
+		}
+	}
+
+	currentRecords, err := c.getZoneRecords(zone)
+	if err != nil {
+		return err
+	}
+	log.Printf("%+v", currentRecords)
+	currentRecords.addRecord(domain, ch.Key)
+	log.Printf("%+v", currentRecords)
+	records := []namecheap.DomainsDNSHostRecord(*currentRecords)
+
+	args := &namecheap.DomainsDNSSetHostsArgs{
+		Domain:  &zone,
+		Records: &records,
+	}
+
+	if _, err := c.namecheapClient.DomainsDNS.SetHosts(args); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -102,8 +141,39 @@ func (c *customDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 // value provided on the ChallengeRequest should be cleaned up.
 // This is in order to facilitate multiple DNS validations for the same domain
 // concurrently.
-func (c *customDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
-	// TODO: add code that deletes a record from the DNS provider's console
+func (c *namecheapDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
+	cfg, err := loadConfig(ch.Config)
+	if err != nil {
+		return err
+	}
+
+	zone, domain, err := c.parseChallenge(ch)
+	if err != nil {
+		return err
+	}
+
+	if c.namecheapClient == nil {
+		if err := c.setNamecheapClient(ch, cfg); err != nil {
+			return err
+		}
+	}
+
+	currentRecords, err := c.getZoneRecords(zone)
+	if err != nil {
+		return err
+	}
+	currentRecords.removeRecord(domain)
+	records := []namecheap.DomainsDNSHostRecord(*currentRecords)
+
+	args := &namecheap.DomainsDNSSetHostsArgs{
+		Domain:  &zone,
+		Records: &records,
+	}
+
+	if _, err := c.namecheapClient.DomainsDNS.SetHosts(args); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -116,25 +186,22 @@ func (c *customDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 // provider accounts.
 // The stopCh can be used to handle early termination of the webhook, in cases
 // where a SIGTERM or similar signal is sent to the webhook process.
-func (c *customDNSProviderSolver) Initialize(kubeClientConfig *rest.Config, stopCh <-chan struct{}) error {
-	///// UNCOMMENT THE BELOW CODE TO MAKE A KUBERNETES CLIENTSET AVAILABLE TO
-	///// YOUR CUSTOM DNS PROVIDER
+func (c *namecheapDNSProviderSolver) Initialize(kubeClientConfig *rest.Config, stopCh <-chan struct{}) error {
+	cl, err := kubernetes.NewForConfig(kubeClientConfig)
+	if err != nil {
+		return err
+	}
 
-	//cl, err := kubernetes.NewForConfig(kubeClientConfig)
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//c.client = cl
+	c.k8sClient = cl
+	c.ctx = context.Background()
 
-	///// END OF CODE TO MAKE KUBERNETES CLIENTSET AVAILABLE
 	return nil
 }
 
 // loadConfig is a small helper function that decodes JSON configuration into
 // the typed config struct.
-func loadConfig(cfgJSON *extapi.JSON) (customDNSProviderConfig, error) {
-	cfg := customDNSProviderConfig{}
+func loadConfig(cfgJSON *extapi.JSON) (namecheapDNSProviderConfig, error) {
+	cfg := namecheapDNSProviderConfig{}
 	// handle the 'base case' where no configuration has been provided
 	if cfgJSON == nil {
 		return cfg, nil
@@ -144,4 +211,147 @@ func loadConfig(cfgJSON *extapi.JSON) (customDNSProviderConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+func (c *namecheapDNSProviderSolver) setNamecheapClient(ch *v1alpha1.ChallengeRequest, cfg namecheapDNSProviderConfig) error {
+	ref := cfg.APIKeySecretRef
+	if ref.Name == "" {
+		return fmt.Errorf(
+			"secret for Namecheap apiKey not found in '%s'",
+			ch.ResourceNamespace,
+		)
+	}
+	if ref.Key == "" {
+		return fmt.Errorf(
+			"no 'key' set in secret '%s/%s'",
+			ch.ResourceNamespace,
+			ref.Name,
+		)
+	}
+
+	secret, err := c.k8sClient.CoreV1().Secrets(ch.ResourceNamespace).Get(
+		c.ctx, ref.Name, metav1.GetOptions{},
+	)
+	if err != nil {
+		return err
+	}
+	apiKeyBytes, ok := secret.Data[ref.Key]
+	if !ok {
+		return fmt.Errorf(
+			"no key '%s' in secret '%s/%s'",
+			ref.Key,
+			ch.ResourceNamespace,
+			ref.Name,
+		)
+	}
+	apiKey := string(apiKeyBytes)
+
+	opts := &namecheap.ClientOptions{
+		ApiKey:     apiKey,
+		ApiUser:    cfg.APIUser,
+		ClientIp:   cfg.ClientIP,
+		UseSandbox: cfg.UseSandbox,
+		UserName:   cfg.Username,
+	}
+	c.namecheapClient = namecheap.NewClient(
+		opts,
+	)
+
+	return nil
+}
+
+func (c *namecheapDNSProviderSolver) getZoneRecords(zone string) (*zoneRecords, error) {
+	resp, err := c.namecheapClient.DomainsDNS.GetHosts(zone)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.DomainDNSGetHostsResult == nil || resp.DomainDNSGetHostsResult.Hosts == nil {
+		return nil, fmt.Errorf(
+			"no records found for zone '%s", zone,
+		)
+	}
+
+	records := make(zoneRecords, len(*resp.DomainDNSGetHostsResult.Hosts))
+
+	for i, host := range *resp.DomainDNSGetHostsResult.Hosts {
+		if host.Name == nil {
+			return nil, fmt.Errorf(
+				"hostname missing for record",
+			)
+		}
+		if host.Type == nil {
+			return nil, fmt.Errorf(
+				"type missing for record",
+			)
+		}
+
+		record := namecheap.DomainsDNSHostRecord{
+			HostName:   host.Name,
+			RecordType: host.Type,
+		}
+		if host.Address != nil {
+			record.Address = host.Address
+		}
+		if host.MXPref != nil {
+			record.MXPref = namecheap.UInt8(uint8(*host.MXPref))
+		}
+		if host.TTL != nil {
+			record.TTL = host.TTL
+		}
+
+		records[i] = record
+	}
+
+	return &records, nil
+}
+
+// Get the zone and domain we are setting from the challenge request
+// source: https://github.com/ns1/cert-manager-webhook-ns1
+func (c *namecheapDNSProviderSolver) parseChallenge(ch *v1alpha1.ChallengeRequest) (
+	zone string, domain string, err error,
+) {
+
+	if zone, err = util.FindZoneByFqdn(
+		ch.ResolvedFQDN, util.RecursiveNameservers,
+	); err != nil {
+		return "", "", err
+	}
+	zone = util.UnFqdn(zone)
+
+	if idx := strings.Index(ch.ResolvedFQDN, "."+ch.ResolvedZone); idx != -1 {
+		domain = ch.ResolvedFQDN[:idx]
+	} else {
+		domain = util.UnFqdn(ch.ResolvedFQDN)
+	}
+
+	return zone, domain, nil
+}
+
+// Adds a record to a domain
+func (zr *zoneRecords) addRecord(domain, key string) {
+	records := append(
+		*zr,
+		namecheap.DomainsDNSHostRecord{
+			HostName:   &domain,
+			RecordType: namecheap.String(namecheap.RecordTypeTXT),
+			Address:    namecheap.String(key),
+			TTL:        namecheap.Int(60),
+		},
+	)
+
+	*zr = records
+}
+
+// Removes a record to a domain
+func (zr *zoneRecords) removeRecord(domain string) {
+	records := []namecheap.DomainsDNSHostRecord(*zr)
+
+	for i, record := range *zr {
+		if *record.HostName == domain {
+			records = append(records[:i], records[i+i:]...)
+		}
+	}
+
+	*zr = zoneRecords(records)
 }
