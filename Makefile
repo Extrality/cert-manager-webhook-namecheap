@@ -2,8 +2,9 @@ OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 
 IMAGE_NAME := cert-manager-webhook-namecheap
-IMAGE_TAG := "latest"
-REPO_NAME := jgoodhouse
+IMAGE_TAG := $(shell git describe)
+REPO_NAME := kelvie
+PLATFORMS := linux/amd64,linux/arm64
 
 OUT := $(shell pwd)/_out
 
@@ -27,14 +28,10 @@ clean: clean-kubebuilder
 clean-kubebuilder:
 	rm -Rf _test/kubebuilder
 
-build:
-	docker build -t "$(IMAGE_NAME):$(IMAGE_TAG)" .
-
-tag:
-	docker tag "$(IMAGE_NAME):$(IMAGE_TAG)" "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)"
-
 push:
-	docker push "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)"
+	docker buildx build --push --platform $(PLATFORMS) -t "$(REPO_NAME)/$(IMAGE_NAME):latest" .
+	docker buildx build --push --platform $(PLATFORMS) -t "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)" .
+
 
 .PHONY: rendered-manifest.yaml
 rendered-manifest.yaml:
