@@ -2,7 +2,7 @@ OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 
 IMAGE_NAME := cert-manager-webhook-namecheap
-IMAGE_TAG := $(shell git describe)
+IMAGE_TAG := $(shell git describe --dirty)
 REPO_NAME := kelvie
 PLATFORMS := linux/amd64,linux/arm64
 
@@ -27,6 +27,10 @@ clean: clean-kubebuilder
 
 clean-kubebuilder:
 	rm -Rf _test/kubebuilder
+
+tag:
+	docker buildx build --platform $(PLATFORMS) -t "$(REPO_NAME)/$(IMAGE_NAME):latest" .
+	docker buildx build --platform $(PLATFORMS) -t "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)" .
 
 push:
 	docker buildx build --push --platform $(PLATFORMS) -t "$(REPO_NAME)/$(IMAGE_NAME):latest" .
