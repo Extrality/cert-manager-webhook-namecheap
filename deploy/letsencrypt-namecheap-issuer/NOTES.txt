@@ -1,0 +1,17 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named {{ .Release.Name }}.
+
+The issuers have been created in the {{ .Release.Namespace }} namespace, and
+will use {{ .Values.email }} as its email address -- if this is wrong, please
+run:
+
+  $ helm upgrade --set email=yourname@example.com {{ .Release.Name  }} <chart directory>
+
+They will require you to create a secret named `{{ .Values.secret }}` with the
+keys `apiUser` and `apiKey` with your keys from Namecheap
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}

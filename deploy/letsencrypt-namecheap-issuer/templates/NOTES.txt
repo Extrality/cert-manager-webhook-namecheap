@@ -1,0 +1,27 @@
+Thank you for installing {{ .Chart.Name }}.
+
+Your release is named {{ .Release.Name }}.
+
+The issuers have been created in the {{ .Release.Namespace }} namespace, and
+will use {{ .Values.email }} as its email address -- if this is wrong, please run:
+
+  $ helm upgrade --set email=yourname@example.com {{ .Release.Name  }} <chart directory>
+
+They will require you to create a secret like this:
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.secret }}
+type: Opaque
+stringData:
+  apiKey: my_api_key_from_namecheap
+  apiUser: my_username_from_namecheap
+
+Remember that you'll need to whitelist your public IP from where this webhook
+will come from to use this.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}

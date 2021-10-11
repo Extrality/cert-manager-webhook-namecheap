@@ -1,0 +1,6 @@
+# Name of the secret in k8s. it will require the fields:
+# apiKey -- API key from namecheap
+# apiUser -- API username from namecheap
+secret: namecheap-credentials
+
+email: somebody@example.org
