@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -244,11 +245,17 @@ func (c *namecheapDNSProviderSolver) getSecret(ref *cmmeta.SecretKeySelector, na
 }
 
 func (c *namecheapDNSProviderSolver) setNamecheapClient(ch *v1alpha1.ChallengeRequest, cfg namecheapDNSProviderConfig) error {
+	if cfg.APIKeySecretRef == nil {
+		return errors.New("Secret field 'apiKeySecretRef' could not be located. Check Spelling.")
+	}
 	apiKey, err := c.getSecret(cfg.APIKeySecretRef, ch.ResourceNamespace)
 	if err != nil {
 		return err
 	}
-
+	
+	if cfg.APIUserSecretRef == nil {
+		return errors.New("Secret field 'apiUserSecretRef' could not be located. Check Spelling.")
+	}
 	apiUser, err := c.getSecret(cfg.APIUserSecretRef, ch.ResourceNamespace)
 	if err != nil {
 		return err
