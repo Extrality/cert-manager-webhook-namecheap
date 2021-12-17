@@ -1,10 +1,9 @@
 package main
 
 import (
+	"github.com/jetstack/cert-manager/test/acme/dns"
 	"os"
 	"testing"
-
-	"github.com/jetstack/cert-manager/test/acme/dns"
 )
 
 var (
@@ -21,7 +20,6 @@ func TestRunsSuite(t *testing.T) {
 		dns.SetResolvedZone(zone),
 		dns.SetAllowAmbientCredentials(false),
 		dns.SetManifestPath("testdata/namecheap"),
-		dns.SetBinariesPath("_test/kubebuilder/bin"),
 	)
 
 	fixture.RunConformance(t)

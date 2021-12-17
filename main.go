@@ -122,7 +122,7 @@ func (c *namecheapDNSProviderSolver) Name() string {
 // cert-manager itself will later perform a self check to ensure that the
 // solver has correctly configured the DNS provider.
 func (c *namecheapDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
-	cfg, err := loadConfig(ch.Config)
+	cfg, err := loadConfig((*extapi.JSON)(ch.Config))
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func (c *namecheapDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) erro
 // This is in order to facilitate multiple DNS validations for the same domain
 // concurrently.
 func (c *namecheapDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
-	cfg, err := loadConfig(ch.Config)
+	cfg, err := loadConfig((*extapi.JSON)(ch.Config))
 	if err != nil {
 		return err
 	}

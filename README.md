@@ -82,19 +82,9 @@ TODO: add simple nginx example to test that it works
 
 ### Running the test suite
 
-All DNS providers **must** run the DNS01 provider conformance testing suite,
-else they will have undetermined behaviour when used with cert-manager.
+#### Steps
 
-**It is essential that you configure and run the test suite when creating a
-DNS01 webhook.**
-
-An example Go test file has been provided in [main_test.go](https://github.com/jetstack/cert-manager-webhook-example/blob/master/main_test.go).
-
-You can run the test suite with:
-
-```bash
-$ TEST_ZONE_NAME=example.com. make test
-```
-
-The example file has a number of areas you must fill in and replace with your
-own options in order for tests to pass.
+1. Create testdata/namecheap/apiKey.yaml and testdata/namecheap/config.json using your credentials. 
+2. Run `TEST_ZONE_NAME=example.com. make test` . Note that the domain here should be updated to your own
+domain name. Also note that this is a full domain name with a `.` at the end.
+3. You should see all tests passing.
