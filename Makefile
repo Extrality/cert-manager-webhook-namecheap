@@ -3,7 +3,7 @@ ARCH ?= $(shell go env GOARCH)
 
 IMAGE_NAME := cert-manager-webhook-namecheap
 IMAGE_TAG := $(shell git describe --dirty)
-REPO_NAME := kelvie
+REPO_NAME := extrality
 PLATFORMS := linux/amd64,linux/arm64
 
 OUT := $(shell pwd)/_out
