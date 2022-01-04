@@ -1,0 +1,24 @@
+apiVersion: v1
+entries:
+  cert-manager-webhook-namecheap:
+  - apiVersion: v2
+    appVersion: v0.1.0
+    created: "2022-01-04T17:47:14.983985314Z"
+    description: Namecheap Webhook for Cert Manager
+    digest: 7552c1bd2b33e22073ea10d2e0eba4c4c0c0cebde46ddd2a15681ea606bc2669
+    name: cert-manager-webhook-namecheap
+    urls:
+    - https://github.com/Extrality/cert-manager-webhook-namecheap/releases/download/cert-manager-webhook-namecheap-0.1.1/cert-manager-webhook-namecheap-0.1.1.tgz
+    version: 0.1.1
+  letsencrypt-namecheap-issuer:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2022-01-04T17:47:15.1810376Z"
+    description: A Helm chart for Kubernetes
+    digest: d638a09853ca82f0a36510e059899b54909c2ab38bccba1ffa38bc2d1d59d137
+    name: letsencrypt-namecheap-issuer
+    type: application
+    urls:
+    - https://github.com/Extrality/cert-manager-webhook-namecheap/releases/download/letsencrypt-namecheap-issuer-0.1.1/letsencrypt-namecheap-issuer-0.1.1.tgz
+    version: 0.1.1
+generated: "2022-01-04T17:47:15.1810437Z"
