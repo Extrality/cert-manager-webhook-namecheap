@@ -3,6 +3,15 @@ entries:
   cert-manager-webhook-namecheap:
   - apiVersion: v2
     appVersion: v0.1.0
+    created: "2022-01-04T18:52:58.466451357Z"
+    description: Namecheap Webhook for Cert Manager
+    digest: 25eb281738b0b8880e1e3dcbf2a43ae10b0172bba128cb56d103eae5b40618ea
+    name: cert-manager-webhook-namecheap
+    urls:
+    - https://github.com/Extrality/cert-manager-webhook-namecheap/releases/download/cert-manager-webhook-namecheap-0.1.2/cert-manager-webhook-namecheap-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: v0.1.0
     created: "2022-01-04T17:47:14.983985314Z"
     description: Namecheap Webhook for Cert Manager
     digest: 7552c1bd2b33e22073ea10d2e0eba4c4c0c0cebde46ddd2a15681ea606bc2669
@@ -21,4 +30,4 @@ entries:
     urls:
     - https://github.com/Extrality/cert-manager-webhook-namecheap/releases/download/letsencrypt-namecheap-issuer-0.1.1/letsencrypt-namecheap-issuer-0.1.1.tgz
     version: 0.1.1
-generated: "2022-01-04T17:47:15.1810437Z"
+generated: "2022-01-04T18:52:58.466460557Z"
