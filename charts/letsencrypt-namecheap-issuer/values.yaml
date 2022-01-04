@@ -4,3 +4,6 @@
 secret: namecheap-credentials
 
 email: somebody@example.org
+
+# Set to true to use let's encrypt staging server
+staging: false
