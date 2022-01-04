@@ -84,7 +84,8 @@ TODO: add simple nginx example to test that it works
 
 #### Steps
 
-1. Create testdata/namecheap/apiKey.yaml and testdata/namecheap/config.json using your credentials. 
+1. Create testdata/namecheap/apiKey.yaml and testdata/namecheap/config.json using your credentials.
 2. Run `TEST_ZONE_NAME=example.com. make test` . Note that the domain here should be updated to your own
 domain name. Also note that this is a full domain name with a `.` at the end.
 3. You should see all tests passing.
+4. In case the tests fail: set `useSandbox` to false

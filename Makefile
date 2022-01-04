@@ -12,6 +12,11 @@ KUBEBUILDER_VERSION=2.3.2
 
 $(shell mkdir -p "$(OUT)")
 
+# temporary fix for tests (https://github.com/cert-manager/webhook-example/issues/32)
+export TEST_ASSET_ETCD=_test/kubebuilder/bin/etcd
+export TEST_ASSET_KUBE_APISERVER=_test/kubebuilder/bin/kube-apiserver
+export TEST_ASSET_KUBECTL=_test/kubebuilder/bin/kubectl
+
 test: _test/kubebuilder
 	go test -v .
 
