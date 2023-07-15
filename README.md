@@ -2,7 +2,7 @@
 
 # Instructions for use with Let's Encrypt
 
-Thanks to [Addison van den Hoeven](https://github.com/Addyvan), from https://github.com/jetstack/cert-manager/issues/646
+Thanks to [Addison van den Hoeven](https://github.com/Addyvan), from https://github.com/cert-manager/cert-manager/issues/646
 
 Use helm to deploy this into your `cert-manager` namespace:
 
