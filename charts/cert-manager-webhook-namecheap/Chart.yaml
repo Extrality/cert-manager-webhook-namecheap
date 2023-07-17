@@ -2,4 +2,4 @@ apiVersion: v2
 appVersion: "v0.3.0"
 description: Namecheap Webhook for Cert Manager
 name: cert-manager-webhook-namecheap
-version: 0.2.0
+version: 0.2.1

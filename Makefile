@@ -35,7 +35,6 @@ build:
 	docker buildx build \
 		--platform $(PLATFORMS) \
 		-t "$(REPO_NAME)/$(IMAGE_NAME):latest" \
-		-t "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)" \
 		.
 
 push:
