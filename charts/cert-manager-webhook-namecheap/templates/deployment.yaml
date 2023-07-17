@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "cert-manager-webhook-namecheap.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
   labels:
     app: {{ include "cert-manager-webhook-namecheap.name" . }}
     chart: {{ include "cert-manager-webhook-namecheap.chart" . }}
@@ -28,7 +29,6 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-            - --secure-port={{ .Values.containerPort }}
             - --tls-cert-file=/tls/tls.crt
             - --tls-private-key-file=/tls/tls.key
           env:
@@ -36,7 +36,7 @@ spec:
               value: {{ .Values.groupName | quote }}
           ports:
             - name: https
-              containerPort: {{ .Values.containerPort }}
+              containerPort: 443
               protocol: TCP
           livenessProbe:
             httpGet:

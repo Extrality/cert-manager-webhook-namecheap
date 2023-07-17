@@ -1,51 +1,55 @@
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+GO ?= $(shell which go)
+OS ?= $(shell $(GO) env GOOS)
+ARCH ?= $(shell $(GO) env GOARCH)
 
-IMAGE_NAME := cert-manager-webhook-namecheap
+IMAGE_NAME := "cert-manager-webhook-namecheap"
 IMAGE_TAG := $(shell git describe --dirty)
-REPO_NAME := ghcr.io/extrality
 PLATFORMS := linux/amd64,linux/arm64
-
+REPO_NAME := ghcr.io/extrality
 OUT := $(shell pwd)/_out
 
-KUBEBUILDER_VERSION=2.3.2
+KUBE_VERSION=1.25.0
 
 $(shell mkdir -p "$(OUT)")
-
-# temporary fix for tests (https://github.com/cert-manager/webhook-example/issues/32)
-export TEST_ASSET_ETCD=_test/kubebuilder/bin/etcd
-export TEST_ASSET_KUBE_APISERVER=_test/kubebuilder/bin/kube-apiserver
-export TEST_ASSET_KUBECTL=_test/kubebuilder/bin/kubectl
+export TEST_ASSET_ETCD=_test/kubebuilder/etcd
+export TEST_ASSET_KUBE_APISERVER=_test/kubebuilder/kube-apiserver
+export TEST_ASSET_KUBECTL=_test/kubebuilder/kubectl
 
 test: _test/kubebuilder
-	go test -v .
+	$(GO) test -v .
 
 _test/kubebuilder:
-	curl -fsSL https://github.com/kubernetes-sigs/kubebuilder/releases/download/v$(KUBEBUILDER_VERSION)/kubebuilder_$(KUBEBUILDER_VERSION)_$(OS)_$(ARCH).tar.gz -o kubebuilder-tools.tar.gz
+	curl -fsSL https://go.kubebuilder.io/test-tools/$(KUBE_VERSION)/$(OS)/$(ARCH) -o kubebuilder-tools.tar.gz
 	mkdir -p _test/kubebuilder
 	tar -xvf kubebuilder-tools.tar.gz
-	mv kubebuilder_$(KUBEBUILDER_VERSION)_$(OS)_$(ARCH)/bin _test/kubebuilder/
+	mv kubebuilder/bin/* _test/kubebuilder/
 	rm kubebuilder-tools.tar.gz
-	rm -R kubebuilder_$(KUBEBUILDER_VERSION)_$(OS)_$(ARCH)
+	rm -R kubebuilder
 
 clean: clean-kubebuilder
 
 clean-kubebuilder:
 	rm -Rf _test/kubebuilder
 
-tag:
-	docker buildx build --platform $(PLATFORMS) -t "$(REPO_NAME)/$(IMAGE_NAME):latest" .
-	docker buildx build --platform $(PLATFORMS) -t "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)" .
+build:
+	docker buildx build \
+		--platform $(PLATFORMS) \
+		-t "$(REPO_NAME)/$(IMAGE_NAME):latest" \
+		-t "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)" \
+		.
 
 push:
-	docker buildx build --push --platform $(PLATFORMS) -t "$(REPO_NAME)/$(IMAGE_NAME):latest" .
-	docker buildx build --push --platform $(PLATFORMS) -t "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)" .
+	docker buildx build \
+		--push --platform $(PLATFORMS) \
+		-t "$(REPO_NAME)/$(IMAGE_NAME):latest" \
+		-t "$(REPO_NAME)/$(IMAGE_NAME):$(IMAGE_TAG)" \
+		.
 
 
 .PHONY: rendered-manifest.yaml
 rendered-manifest.yaml:
 	helm template \
-	    --name ${IMAGE_NAME} \
-        --set image.repository=$(IMAGE_NAME) \
-        --set image.tag=$(IMAGE_TAG) \
-        deploy/${IMAGE_NAME} > "$(OUT)/rendered-manifest.yaml"
+	    --name example-webhook \
+            --set image.repository=$(IMAGE_NAME) \
+            --set image.tag=$(IMAGE_TAG) \
+            deploy/example-webhook > "$(OUT)/rendered-manifest.yaml"

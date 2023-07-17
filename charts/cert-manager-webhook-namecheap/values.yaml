@@ -20,9 +20,6 @@ image:
 nameOverride: ""
 fullnameOverride: ""
 
-# The (secure) port our app binds to
-containerPort: 8443
-
 service:
   type: ClusterIP
   port: 443
