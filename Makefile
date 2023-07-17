@@ -3,7 +3,7 @@ OS ?= $(shell $(GO) env GOOS)
 ARCH ?= $(shell $(GO) env GOARCH)
 
 IMAGE_NAME := "cert-manager-webhook-namecheap"
-IMAGE_TAG := $(shell git describe --dirty)
+IMAGE_TAG := $(shell git describe --dirty || echo (unknown))
 PLATFORMS := linux/amd64,linux/arm64
 REPO_NAME := ghcr.io/extrality
 OUT := $(shell pwd)/_out
