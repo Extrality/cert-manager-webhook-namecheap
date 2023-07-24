@@ -3,7 +3,7 @@ OS ?= $(shell $(GO) env GOOS)
 ARCH ?= $(shell $(GO) env GOARCH)
 
 IMAGE_NAME := cert-manager-webhook-namecheap
-IMAGE_TAG := $(shell giit describe --dirty)
+IMAGE_TAG := $(shell git describe --dirty)
 ifeq ($(IMAGE_TAG),)
 	IMAGE_TAG := latest
 endif
